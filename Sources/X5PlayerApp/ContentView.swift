@@ -1,10 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-
-extension UTType {
-    static let insta360INSV = UTType(exportedAs: "com.insta360.insv", conformingTo: .movie, tagSpecification: [.filenameExtension: "insv"])
-}
 struct ContentView: View {
     @StateObject private var player = PlayerModel()
 
@@ -29,7 +25,7 @@ struct ContentView: View {
         }
         .background(Color(red: 0.055, green: 0.067, blue: 0.071))
         .preferredColorScheme(.dark)
-        .fileImporter(isPresented: $player.showImporter, allowedContentTypes: [.insta360INSV, .movie, .data]) { result in
+        .fileImporter(isPresented: $player.showImporter, allowedContentTypes: [.movie, .data]) { result in
             player.open(result)
         }
     }
