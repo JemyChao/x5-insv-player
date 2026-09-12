@@ -2,7 +2,7 @@
 using namespace metal;
 
 struct Out { float4 position [[position]]; float2 uv; };
-struct ViewUniforms { float yaw; float pitch; float fov; float aspect; };
+struct ViewUniforms { float yaw; float pitch; float fov; float aspect; uint hasFrame; uint3 padding; };
 
 vertex Out fullscreenVertex(uint id [[vertex_id]]) {
     float2 points[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
@@ -11,7 +11,7 @@ vertex Out fullscreenVertex(uint id [[vertex_id]]) {
 
 fragment float4 x5FisheyeFragment(Out in [[stage_in]], texture2d<float> lensA [[texture(0)]], texture2d<float> lensB [[texture(1)]], constant ViewUniforms& view [[buffer(0)]]) {
     constexpr sampler linearSampler(coord::normalized, filter::linear, address::clamp_to_edge);
-    if (!lensA || !lensB) return float4(0.025, 0.03, 0.03, 1.0);
+    if (view.hasFrame == 0) return float4(0.025, 0.03, 0.03, 1.0);
     float2 screen = (in.uv * 2.0 - 1.0) * float2(view.aspect, 1.0);
     float3 ray = normalize(float3(screen * tan(view.fov * 0.5), 1.0));
     float cy = cos(view.yaw), sy = sin(view.yaw), cp = cos(view.pitch), sp = sin(view.pitch);

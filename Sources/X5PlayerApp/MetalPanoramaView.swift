@@ -58,10 +58,24 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
         guard let drawable = view.currentDrawable, let descriptor = view.currentRenderPassDescriptor, let queue = commandQueue else { return }
         let command = queue.makeCommandBuffer()!; let encoder = command.makeRenderCommandEncoder(descriptor: descriptor)!; encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(leftTexture, index: 0); encoder.setFragmentTexture(rightTexture, index: 1)
-        var uniforms = ViewUniforms(yaw: yaw, pitch: pitch, fov: fov, aspect: Float(view.drawableSize.width / max(view.drawableSize.height, 1)))
+        var uniforms = ViewUniforms(
+            yaw: yaw,
+            pitch: pitch,
+            fov: fov,
+            aspect: Float(view.drawableSize.width / max(view.drawableSize.height, 1)),
+            hasFrame: leftTexture != nil && rightTexture != nil ? 1 : 0,
+            padding: SIMD3<UInt32>(repeating: 0)
+        )
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<ViewUniforms>.stride, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3); encoder.endEncoding(); command.present(drawable); command.commit()
     }
 }
 
-private struct ViewUniforms { var yaw: Float; var pitch: Float; var fov: Float; var aspect: Float }
+private struct ViewUniforms {
+    var yaw: Float
+    var pitch: Float
+    var fov: Float
+    var aspect: Float
+    var hasFrame: UInt32
+    var padding: SIMD3<UInt32>
+}
