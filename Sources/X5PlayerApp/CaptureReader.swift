@@ -8,13 +8,13 @@ final class CaptureReader {
     let dimensions: String
     let duration: Double
     private let tracks: [AVAssetTrack]
+    private let scopedAccess: Bool
     private var reader: AVAssetReader?
     private var outputs: [AVAssetReaderTrackOutput] = []
 
     init(url: URL) async throws {
         guard url.pathExtension.lowercased() == "insv" || ["mp4", "mov"].contains(url.pathExtension.lowercased()) else { throw PlayerError.unsupportedFile }
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        scopedAccess = url.startAccessingSecurityScopedResource()
         asset = AVURLAsset(url: url)
         tracks = try await asset.loadTracks(withMediaType: .video)
         guard tracks.count >= 2 else { throw PlayerError.missingLensTracks(found: tracks.count) }
@@ -26,6 +26,8 @@ final class CaptureReader {
         duration = loadedDuration.seconds
         try configureReader(at: .zero)
     }
+
+    deinit { if scopedAccess { asset.url.stopAccessingSecurityScopedResource() } }
 
     func nextFrame() -> FramePair? {
         guard let reader, reader.status == .reading, outputs.count >= 2,
