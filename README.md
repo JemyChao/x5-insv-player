@@ -51,11 +51,11 @@ Three timestamps are read, and all three are shown because they disagree in a
 way that matters:
 
 - **`mvhd`** in the MP4 movie header, seconds since 1904-01-01, normally UTC.
-- **The file name**, `VID_20260627_145116_00_015.insv`, in the camera's local
+- **The file name**, `VID_20250101_120000_00_001.insv`, in the camera's local
   time. This is the only place the camera's time-zone offset survives, so the
-  name is read as wall clock and compared against UTC to recover it. On the X5
-  sample the container says 12:51:16 and the name says 14:51:16, which is how
-  the sidebar knows the camera was set to UTC+2.
+  name is read as wall clock and compared against UTC to recover it. A
+  container stamp two hours behind the name is how the sidebar works out that
+  the camera was set to UTC+2.
 - **The first GPS fix**, always UTC, and the most trustworthy of the three
   because copying or re-muxing a file cannot rewrite it.
 
@@ -167,3 +167,15 @@ vibration sitting on top of an otherwise stabilised image.
 - The HLG tone map is a roll-off, not a colour-managed HDR path.
 - Seeking lands on the preceding sync sample and drops forward to the target,
   so scrubbing on an 8K capture is as fast as the decoder allows, no faster.
+
+## Licence
+
+Apache License 2.0 — see `LICENSE`. It is preferred here over a shorter permissive
+licence for its explicit patent grant.
+
+## Not affiliated with Insta360
+
+This is an independent project with no connection to Arashi Vision Inc. "Insta360"
+and "X5" are used only to say which captures the player reads. No Insta360 SDK,
+library or source is used: the container layout was worked out by reading the
+bytes of ordinary, unencrypted capture files.
