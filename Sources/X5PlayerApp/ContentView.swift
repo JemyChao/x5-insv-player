@@ -165,7 +165,7 @@ struct ContentView: View {
                     .font(.system(size: 10, design: .monospaced))
                     .padding(.top, 6)
                 if player.showHorizon {
-                    Text("Red: where gravity says level is. Green: the window's own centre lines.")
+                    Text("Red: where the IMU says level is. Green: the window's centre. Switch stabilisation OFF and check the red line against the real horizon in the footage.")
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

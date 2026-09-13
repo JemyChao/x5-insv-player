@@ -286,16 +286,17 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
         )
     }
 
-    /// The measured up direction carried into view space, plus a line width
-    /// that stays about three pixels however far the view is zoomed in.
+    /// Where the stabilisation believes level is, carried into view space, plus
+    /// a line width that stays about three pixels however far the view is
+    /// zoomed in.
     ///
-    /// Carried through the same heading frame the correction uses, so the line
-    /// and the correction agree. What settles it is the footage: the real
-    /// horizon is visible in the image, so a line that tracks it means the IMU
-    /// frame is right and any wobble is the stabilisation failing, while a line
-    /// that sits at an angle to it means the heading is wrong instead.
+    /// With stabilisation on the line necessarily lands on the window's centre
+    /// line and says nothing. Switch stabilisation off and it becomes the one
+    /// useful test: the footage shows the real horizon, so a line that tracks
+    /// it means the estimate is sound and the fault is in applying it, and a
+    /// line at an angle to it means the heading frame is wrong.
     private func horizonUniform(_ combined: simd_quatf, height: Float) -> SIMD4<Float> {
-        let measured = motion?.measuredUp(at: presentedTime) ?? SIMD3<Float>(0, 1, 0)
+        let measured = motion?.estimatedUp(at: presentedTime) ?? SIMD3<Float>(0, 1, 0)
         let frame = simd_quatf(angle: imuYaw.radians, axis: SIMD3<Float>(0, 1, 0))
         let inView = combined.inverse.act(frame.inverse.act(measured))
         let radiansPerPixel = fieldOfView / max(height, 1)

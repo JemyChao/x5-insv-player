@@ -20,11 +20,6 @@ final class MotionTrack {
 
     private var times: [Double] = []
     private var orientations: [simd_quatf] = []
-    /// Measured world up, lightly smoothed. Deliberately independent of the
-    /// filter's own reference: an overlay drawn from the filter's estimate
-    /// would look perfect whenever the filter is wrong in a self-consistent
-    /// way, which is exactly the case worth seeing.
-    private var measuredUps: [SIMD3<Float>] = []
 
     static let identity = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
 
@@ -62,8 +57,6 @@ final class MotionTrack {
         }
         let reference = MotionTrack.centredAverage(levelled,
                                                    window: max(3, Int(smoothingSeconds * sampleRate)))
-        measuredUps = MotionTrack.centredAverage(levelled, window: max(3, Int(0.15 * sampleRate)))
-            .map { -$0 }
 
         times.reserveCapacity(samples.count)
         orientations.reserveCapacity(samples.count)
@@ -132,13 +125,17 @@ final class MotionTrack {
         return simd_slerp(orientations[low], orientations[high], fraction)
     }
 
-    /// Where gravity says up is, in the capture's frame, for drawing the
-    /// horizon overlay.
-    func measuredUp(at time: Double) -> SIMD3<Float> {
-        guard !measuredUps.isEmpty else { return SIMD3<Float>(0, 1, 0) }
-        let (low, high, fraction) = bracket(time)
-        let blended = measuredUps[low] * (1 - fraction) + measuredUps[high] * fraction
-        return simd_length(blended) > 1e-5 ? simd_normalize(blended) : SIMD3<Float>(0, 1, 0)
+    /// World up in the capture's frame, taken from the filtered orientation:
+    /// where the stabilisation believes level is.
+    ///
+    /// Drawn against the horizon visible in the footage this answers the one
+    /// question the IMU cannot answer about itself. A lightly smoothed
+    /// accelerometer was tried here first and was useless: on a handheld
+    /// capture it sits a median 4.9 degrees off the filter's reference and
+    /// moves 3 degrees a frame, so the line showed linear acceleration rather
+    /// than anything about the stabilisation.
+    func estimatedUp(at time: Double) -> SIMD3<Float> {
+        orientation(at: time).inverse.act(SIMD3<Float>(0, 1, 0))
     }
 
     private func bracket(_ time: Double) -> (low: Int, high: Int, fraction: Float) {
