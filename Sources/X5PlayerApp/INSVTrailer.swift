@@ -53,9 +53,9 @@ struct INSVTrailer {
     var notes: [String] = []
 }
 
-/// Reads the metadata trailer Insta360 appends after the MP4 data.
+/// Reads the metadata trailer the camera appends after the MP4 data.
 ///
-/// Verified against an Insta360 X5 capture (firmware v1.11.6). The trailer is
+/// Verified against an X5 capture (firmware v1.11.6). The trailer is
 /// also exposed as a top-level MP4 box of type `inst`, and ends with a 78 byte
 /// footer: the last 32 bytes are the ASCII magic, offset 38 holds the trailer
 /// length and offset 2 the size of the block index that sits just in front of

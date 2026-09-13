@@ -2,7 +2,7 @@ import Foundation
 
 /// Pulls the camera's own stitch parameters out of block 0x0101.
 ///
-/// Insta360 stores several representations of the same calibration as
+/// The camera stores several representations of the same calibration as
 /// underscore-separated number lists. The one this uses, verified on an X5
 /// capture, carries sixteen fields per lens:
 ///
@@ -142,12 +142,16 @@ enum CalibrationScanner {
 
 /// Model, serial and firmware live as plain strings at the head of block 0x0101.
 enum CameraIdentity {
+    /// The literal model string the camera writes into block 0x0101. This is a
+    /// value to match against data, not a name this project claims any tie to.
+    static let modelPrefix = "Insta360"
+
     static func scan(_ data: Data) -> (model: String?, serial: String?, firmware: String?) {
         var model: String?
         var serial: String?
         var firmware: String?
         for text in strings(in: data, minimumLength: 5) {
-            if model == nil, text.hasPrefix("Insta360") { model = text }
+            if model == nil, text.hasPrefix(Self.modelPrefix) { model = text }
             else if firmware == nil, text.hasPrefix("v"), text.contains("_build") {
                 firmware = text.split(separator: "*").first.map(String.init) ?? text
             } else if serial == nil, text.count >= 10, text.count <= 24,

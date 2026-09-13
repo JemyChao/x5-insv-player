@@ -1,11 +1,11 @@
 # X5 INSV Player
 
-Native macOS player for raw Insta360 X5 `.insv` captures.
+Native macOS player for raw X5 `.insv` 360 captures.
 
 It opens a capture straight off the camera card, decodes both HEVC lens tracks
-with VideoToolbox through AVFoundation, parses the Insta360 metadata trailer,
+with VideoToolbox through AVFoundation, parses the capture's metadata trailer,
 and stitches the two fisheye circles into an interactive 360-degree view in a
-Metal shader. No Insta360 SDK is involved.
+Metal shader. No vendor SDK is involved.
 
 ## What it does
 
@@ -36,7 +36,7 @@ The sidebar says when that path was taken.
 ## Inspecting a capture from the terminal
 
 ```
-swift run X5INSVPlayer --dump /Volumes/Insta360/DCIM/Camera01/VID_xxx_00_001.insv
+swift run X5INSVPlayer --dump /Volumes/<card>/DCIM/Camera01/VID_xxx_00_001.insv
 ```
 
 This prints the trailer block table, the IMU sample rate and magnitudes, any
@@ -173,9 +173,8 @@ vibration sitting on top of an otherwise stabilised image.
 Apache License 2.0 — see `LICENSE`. It is preferred here over a shorter permissive
 licence for its explicit patent grant.
 
-## Not affiliated with Insta360
+## Independent project
 
-This is an independent project with no connection to Arashi Vision Inc. "Insta360"
-and "X5" are used only to say which captures the player reads. No Insta360 SDK,
-library or source is used: the container layout was worked out by reading the
-bytes of ordinary, unencrypted capture files.
+Not affiliated with, endorsed by, or connected to the camera's manufacturer. No
+vendor SDK, library or source is used: the container layout was worked out by
+reading the bytes of ordinary, unencrypted capture files.

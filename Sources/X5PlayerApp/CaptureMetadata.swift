@@ -32,7 +32,7 @@ struct CaptureMetadata {
 /// Minimal big-endian MP4 box reader.
 ///
 /// Only enough of the container is walked to reach `mvhd` for the capture date
-/// and `udta` for the free-form strings Insta360 leaves there, so opening an
+/// and `udta` for the free-form strings the camera leaves there, so opening an
 /// 8K capture costs a few seeks rather than a full read.
 enum MP4Reader {
     /// Seconds between the QuickTime epoch (1904-01-01) and the Unix epoch.
@@ -133,7 +133,7 @@ enum MP4Reader {
         return Date(timeIntervalSince1970: quickTimeSeconds - epochOffset)
     }
 
-    /// Insta360 names its files `VID_20250913_143022_00_001.insv`, in the
+    /// The camera names its files `VID_20250913_143022_00_001.insv`, in the
     /// camera's local time, which is the only place that offset survives.
     static func dateFromFilename(_ name: String) -> Date? {
         let digits = Array(name)

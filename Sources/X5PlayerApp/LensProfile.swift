@@ -1,7 +1,7 @@
 import Foundation
 import simd
 
-/// Fisheye model for one lens of an Insta360 X-series capture.
+/// Fisheye model for one lens of an X-series 360 capture.
 ///
 /// Every image-space value is expressed in normalised texture coordinates of
 /// that lens' own video track, so the same profile survives a change of

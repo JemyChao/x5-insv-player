@@ -24,7 +24,7 @@ enum INSVDump {
         print("file size: " + (size != nil ? "\(size!)" : "unknown") + " bytes")
 
         guard let trailer = INSVTrailerReader.read(url: url, videoDuration: 0) else {
-            print("no Insta360 trailer magic at the end of this file")
+            print("no trailer magic at the end of this file")
             return
         }
 
