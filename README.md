@@ -125,6 +125,24 @@ magnitude came out at 0.993 g against the 1024 counts per g that a +/-32 g range
 implies, and fitting integrated gyro rotation against the accelerometer's tilt
 over two second windows landed on +/-1000 deg/s.
 
+The gravity reference is averaged over a window centred on each sample, not a
+trailing one. Nothing here is real time, so there is no reason to accept the lag
+a causal filter would cost, and handheld linear acceleration swamps the raw
+accelerometer badly enough that steering by it directly is what makes
+stabilisation read as shake rather than cure it. The correction gain comes from
+elapsed time rather than a fixed per-sample fraction, so the filter's time
+constant does not change with the sample rate — this IMU runs at 1 kHz, where a
+constant tuned for a slower sensor ends up forty times too aggressive.
+
+Measured on the sample capture, against a gravity reference the filter does not
+itself use: unstabilised, the horizon sits 5.8 degrees off level. A per-sample
+gain of 0.02 leaves it at 5.9 — no levelling at all — while raising
+high-frequency judder 27 per cent above unstabilised, which is exactly what
+"stabilisation makes it worse" looks like. With the window at 1.5 s the horizon
+lands 1.3 degrees off and judder falls 14 per cent below unstabilised. The
+**Smoothing** control is that window: short is twitchy, long is steady but slow
+to re-level after a real tilt.
+
 **Full** cancels the orientation outright. **Horizon** removes only the tilt and
 lets the heading stay with the camera, which is `q⁻¹ · twist(q)`: cancel the
 orientation, then put the heading back. Inverting the tilt on its own is not the

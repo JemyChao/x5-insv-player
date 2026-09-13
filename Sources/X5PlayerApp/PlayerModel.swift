@@ -56,6 +56,11 @@ final class PlayerModel: ObservableObject {
     @Published var imuYaw: IMUYaw = .zero {
         didSet { renderer.imuYaw = imuYaw }
     }
+    /// Seconds the gravity reference is averaged over. Short is twitchy, long
+    /// is steady but slow to re-level after a real tilt.
+    @Published var horizonSmoothing: Double = 1.5 {
+        didSet { rebuildMotion() }
+    }
     @Published var showGuides = false {
         didSet { renderer.showGuides = showGuides }
     }
@@ -78,6 +83,7 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var isApproximate = true
     @Published private(set) var hasMotion = false
 
+    private var motionSamples: [MotionSample] = []
     private var profileSaveWork: DispatchWorkItem?
     private var messageWork: DispatchWorkItem?
     private var isScrubbing = false
@@ -117,6 +123,7 @@ final class PlayerModel: ObservableObject {
         renderer.engine.unload()
         renderer.motion = nil
         hasMotion = false
+        motionSamples = []
         isPlaying = false
         captureDate = "-"
         captureDateSource = "-"
@@ -218,7 +225,12 @@ final class PlayerModel: ObservableObject {
     }
 
     private func applyMotion(_ parsed: INSVTrailer) {
-        if let track = MotionTrack(samples: parsed.motion) {
+        motionSamples = parsed.motion
+        rebuildMotion()
+    }
+
+    private func rebuildMotion() {
+        if let track = MotionTrack(samples: motionSamples, smoothingSeconds: horizonSmoothing) {
             renderer.motion = track
             hasMotion = true
             motionInfo = String(format: "%d samples / %.0f Hz / gravity aligned %.1f°",
@@ -227,7 +239,7 @@ final class PlayerModel: ObservableObject {
         } else {
             renderer.motion = nil
             hasMotion = false
-            motionInfo = parsed.motion.isEmpty ? "no gyro data in the trailer" : "too few gyro samples to integrate"
+            motionInfo = motionSamples.isEmpty ? "no gyro data in the trailer" : "too few gyro samples to integrate"
         }
     }
 

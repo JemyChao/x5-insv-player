@@ -145,6 +145,9 @@ struct ContentView: View {
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    Tweak(label: "SMOOTHING s", value: $player.horizonSmoothing,
+                          range: 0.3...4.0, format: "%.2f")
+                        .padding(.top, 6)
                 }
             } else {
                 Text("Needs the gyro track from the trailer")

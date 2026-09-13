@@ -7,86 +7,115 @@ import simd
 /// The IMU axes are not documented, but the accelerometer and the gyro share a
 /// body frame, so a single unknown rotation relates them to the optical frame.
 /// Averaging the accelerometer over the whole clip gives the gravity direction
-/// in that body frame, and aligning it with world down fixes every axis that
-/// matters for a level horizon. The one rotation left undetermined is a spin
-/// about gravity, which is exactly the yaw the viewer controls anyway.
+/// in that body frame, and aligning it with world down pins two of the three
+/// axes. The third, a spin about gravity, cannot be recovered from the IMU at
+/// all; it does not affect full lock, which it only reframes, but the horizon
+/// correction is a rotation about a horizontal axis and has to be expressed in
+/// the camera's heading frame, so `IMUYaw` carries it.
 final class MotionTrack {
     let samples: [MotionSample]
     let sampleRate: Double
     let alignmentDegrees: Float
+    let smoothingSeconds: Double
 
     private var times: [Double] = []
     private var orientations: [simd_quatf] = []
 
     static let identity = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
 
-    init?(samples: [MotionSample], invertGyro: Bool = false) {
+    /// - Parameter smoothingSeconds: how long the gravity reference is averaged
+    ///   over. This is the control that decides whether the horizon is steady
+    ///   or shaky, so it is a parameter rather than a constant.
+    init?(samples: [MotionSample], smoothingSeconds: Double = 1.5, invertGyro: Bool = false) {
         guard samples.count > 8 else { return nil }
         let span = samples[samples.count - 1].time - samples[0].time
         guard span > 0 else { return nil }
         self.samples = samples
         self.sampleRate = Double(samples.count - 1) / span
+        self.smoothingSeconds = smoothingSeconds
 
         var meanAccel = SIMD3<Double>(repeating: 0)
         for sample in samples { meanAccel += sample.accel }
         meanAccel /= Double(samples.count)
         let gravity = SIMD3<Float>(Float(meanAccel.x), Float(meanAccel.y), Float(meanAccel.z))
-        let alignment: simd_quatf
-        if simd_length(gravity) > 0.05 {
-            alignment = MotionTrack.shortestArc(from: gravity, to: SIMD3<Float>(0, -1, 0))
-        } else {
-            alignment = MotionTrack.identity
-        }
+        let alignment: simd_quatf = simd_length(gravity) > 0.05
+            ? MotionTrack.shortestArc(from: gravity, to: SIMD3<Float>(0, -1, 0))
+            : MotionTrack.identity
         self.alignmentDegrees = alignment.angle * 180 / .pi
+
+        // Zero-phase gravity reference. Handheld linear acceleration swamps the
+        // raw accelerometer, and correcting towards it directly is what makes
+        // stabilisation read as shake. Nothing here is real time, so the average
+        // is centred on each sample rather than trailing it: no lag, no phase
+        // error, and the reference is smooth enough to steer by.
+        var levelled = [SIMD3<Float>]()
+        levelled.reserveCapacity(samples.count)
+        for sample in samples {
+            levelled.append(alignment.act(SIMD3<Float>(Float(sample.accel.x),
+                                                       Float(sample.accel.y),
+                                                       Float(sample.accel.z))))
+        }
+        let reference = MotionTrack.centredAverage(levelled,
+                                                   window: max(3, Int(smoothingSeconds * sampleRate)))
 
         times.reserveCapacity(samples.count)
         orientations.reserveCapacity(samples.count)
 
-        // Seed from the first usable gravity reading instead of identity, so the
-        // horizon is already level on the first frame rather than converging
-        // over the first fraction of a second.
-        var orientation = MotionTrack.identity
-        for sample in samples {
-            let reading = alignment.act(SIMD3<Float>(Float(sample.accel.x), Float(sample.accel.y), Float(sample.accel.z)))
-            let magnitude = simd_length(reading)
-            if magnitude > 0.4, magnitude < 2.5 {
-                orientation = MotionTrack.shortestArc(from: reading / magnitude, to: SIMD3<Float>(0, -1, 0))
-                break
-            }
-        }
-
+        var orientation = MotionTrack.shortestArc(from: reference[0], to: SIMD3<Float>(0, -1, 0))
         var previousTime = samples[0].time
         let gyroSign: Float = invertGyro ? -1 : 1
-        for sample in samples {
-            let delta = Float(max(0, min(0.25, sample.time - previousTime)))
+        // Correcting a third of the way into the smoothing window keeps the
+        // gyro in charge of anything faster than that.
+        let timeConstant = max(smoothingSeconds / 3, 0.02)
+
+        for (index, sample) in samples.enumerated() {
+            let delta = max(0, min(0.25, sample.time - previousTime))
             previousTime = sample.time
 
             let rawGyro = SIMD3<Float>(Float(sample.gyro.x), Float(sample.gyro.y), Float(sample.gyro.z))
             let rate = alignment.act(rawGyro) * gyroSign
             if delta > 0 {
-                let angle = simd_length(rate) * delta
+                let angle = simd_length(rate) * Float(delta)
                 if angle > 1e-7 {
                     let step = simd_quatf(angle: angle, axis: rate / simd_length(rate))
                     orientation = (orientation * step).normalized
                 }
             }
 
-            // Complementary correction: nudge the integrated orientation so the
-            // measured gravity keeps pointing down, which cancels gyro drift
-            // without fighting genuine motion.
-            let rawAccel = SIMD3<Float>(Float(sample.accel.x), Float(sample.accel.y), Float(sample.accel.z))
-            let measured = alignment.act(rawAccel)
-            let magnitude = simd_length(measured)
-            if magnitude > 0.4, magnitude < 2.5 {
-                let inWorld = orientation.act(measured / magnitude)
-                let correction = MotionTrack.shortestArc(from: inWorld, to: SIMD3<Float>(0, -1, 0))
-                let eased = simd_slerp(MotionTrack.identity, correction, 0.02)
-                orientation = (eased * orientation).normalized
+            // Gain from the elapsed time, not a fixed per-sample fraction: this
+            // IMU runs at 1 kHz, and a constant would make the filter's actual
+            // time constant depend on the sample rate.
+            let gain = Float(min(1.0, delta / timeConstant))
+            if gain > 0 {
+                let measured = reference[index]
+                if simd_length(measured) > 0.5 {
+                    let inWorld = orientation.act(simd_normalize(measured))
+                    let correction = MotionTrack.shortestArc(from: inWorld, to: SIMD3<Float>(0, -1, 0))
+                    let eased = simd_slerp(MotionTrack.identity, correction, gain)
+                    orientation = (eased * orientation).normalized
+                }
             }
 
             times.append(sample.time)
             orientations.append(orientation)
         }
+    }
+
+    /// Moving average centred on each sample, from prefix sums.
+    private static func centredAverage(_ values: [SIMD3<Float>], window: Int) -> [SIMD3<Float>] {
+        guard !values.isEmpty else { return [] }
+        var sums = [SIMD3<Float>](repeating: .zero, count: values.count + 1)
+        for index in values.indices { sums[index + 1] = sums[index] + values[index] }
+        let half = max(1, window / 2)
+        var result = [SIMD3<Float>]()
+        result.reserveCapacity(values.count)
+        for index in values.indices {
+            let low = max(0, index - half)
+            let high = min(values.count, index + half + 1)
+            let mean = (sums[high] - sums[low]) / Float(high - low)
+            result.append(simd_length(mean) > 1e-6 ? simd_normalize(mean) : SIMD3<Float>(0, -1, 0))
+        }
+        return result
     }
 
     /// Camera orientation at `time`, as a rotation from camera space to world space.
