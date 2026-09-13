@@ -213,9 +213,11 @@ fragment float4 panoramaFragment(Varying in [[stage_in]],
     }
     // A fixed line through the middle of the window to judge it against.
     if (u.overlay.y > 0.5) {
-        float half = max(u.overlay.z, 1e-5);
-        float level = 1.0 - smoothstep(0.0, half, abs(ndc.y));
-        float centre = 1.0 - smoothstep(0.0, half, abs(ndc.x));
+        // Not `half`: that is a type name in Metal, and shadowing it does not
+        // compile, which costs the whole pipeline and so the whole picture.
+        float halfWidth = max(u.overlay.z, 1e-5);
+        float level = 1.0 - smoothstep(0.0, halfWidth, abs(ndc.y));
+        float centre = 1.0 - smoothstep(0.0, halfWidth, abs(ndc.x));
         rgb = mix(rgb, float3(0.82, 1.0, 0.30), max(level, centre * 0.55) * 0.7);
     }
 

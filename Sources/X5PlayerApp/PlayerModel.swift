@@ -31,6 +31,9 @@ final class PlayerModel: ObservableObject {
     @Published private(set) var captureDateSource = "-"
     @Published private(set) var gpsInfo = "none"
     @Published private(set) var cameraInfo = "-"
+    /// Renderer set-up failures stay on screen: they mean nothing draws at all,
+    /// and a toast that clears itself is easy to miss.
+    @Published private(set) var rendererError: String?
     @Published private(set) var calibrationSource = "built-in approximation"
     @Published private(set) var trailerNotes: [String] = []
     @Published var message: String?
@@ -100,7 +103,10 @@ final class PlayerModel: ObservableObject {
             Task { @MainActor in self?.progress(time: time, finished: finished) }
         }
         renderer.onSetupError = { [weak self] text in
-            Task { @MainActor in self?.show(text) }
+            Task { @MainActor in
+                self?.rendererError = text
+                self?.show(text)
+            }
         }
         renderer.onLookChanged = { [weak self] yaw, pitch, fov in
             let described = PlayerModel.describeLook(yaw: yaw, pitch: pitch, fov: fov)

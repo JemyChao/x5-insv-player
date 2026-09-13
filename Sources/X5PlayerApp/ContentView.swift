@@ -82,6 +82,18 @@ struct ContentView: View {
 
                     Divider().overlay(Color.white.opacity(0.1))
 
+                    if let failure = player.rendererError {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("RENDERER FAILED")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.red)
+                            Text(failure)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                        }
+                    }
                     InfoLine(label: "CAMERA", value: player.cameraInfo)
                     InfoLine(label: "CAPTURED", value: player.captureDate)
                     InfoLine(label: "TIME SOURCE", value: player.captureDateSource)
