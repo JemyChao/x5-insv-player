@@ -242,7 +242,7 @@ final class PlayerModel: ObservableObject {
         if let track = MotionTrack(samples: motionSamples, smoothingSeconds: horizonSmoothing) {
             renderer.motion = track
             hasMotion = true
-            motionInfo = String(format: "%d samples / %.0f Hz / gravity aligned %.1f°",
+            motionInfo = String(format: "%d samples / %.0f Hz / held %.1f° off level",
                                 track.samples.count, track.sampleRate, track.alignmentDegrees)
             if stabilization == .off { stabilization = .horizon }
         } else {

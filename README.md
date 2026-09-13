@@ -114,11 +114,20 @@ The IMU axis convention is not documented either, but the accelerometer and the
 gyro share a body frame. Averaging the accelerometer over a whole clip gives
 gravity in that frame; aligning it with world down pins every axis that matters
 for a level horizon, and the only rotation left undetermined is a spin about
-gravity — which is the yaw the viewer controls anyway. On the X5 sample gravity
-sits almost entirely on the IMU's X axis and the recovered alignment is 86.6
-degrees, so a hard-coded axis convention would have tipped that capture on its
-side. Orientation is integrated from the gyro with a complementary correction
-toward measured gravity, so it does not drift over a long clip.
+gravity. On both sample captures gravity sits on the IMU's X axis, so IMU -X is
+the camera's down.
+
+That rotation is snapped to whole right angles rather than taken as the shortest
+arc to the measured mean. The sensor is soldered to a board inside the body, so
+the true rotation maps axes onto axes; averaged gravity says which axis points
+down and nothing more, because the rest of it is how far the operator happened
+to hold the camera off level during that clip. Taking the shortest arc folds
+that into the frame and tilts every horizon the clip produces. It is 12.4
+degrees on one sample capture and 3.3 on another from the same camera — a fixed
+mounting cannot move between clips, which is how the mistake shows itself.
+
+Orientation is integrated from the gyro with a complementary correction toward
+measured gravity, so it does not drift over a long clip.
 
 The sensor scales were measured rather than assumed: mean accelerometer
 magnitude came out at 0.993 g against the 1024 counts per g that a +/-32 g range

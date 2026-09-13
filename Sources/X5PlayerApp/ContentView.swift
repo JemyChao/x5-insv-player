@@ -141,7 +141,7 @@ struct ContentView: View {
             .labelsHidden()
             .disabled(!player.hasMotion)
             if player.hasMotion {
-                if player.stabilization == .horizon {
+                if player.stabilization == .horizon || player.showHorizon {
                     Text("IMU HEADING")
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)

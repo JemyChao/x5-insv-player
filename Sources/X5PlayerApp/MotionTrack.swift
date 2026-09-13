@@ -39,9 +39,13 @@ final class MotionTrack {
         meanAccel /= Double(samples.count)
         let gravity = SIMD3<Float>(Float(meanAccel.x), Float(meanAccel.y), Float(meanAccel.z))
         let alignment: simd_quatf = simd_length(gravity) > 0.05
-            ? MotionTrack.shortestArc(from: gravity, to: SIMD3<Float>(0, -1, 0))
+            ? MotionTrack.axisAligned(to: gravity)
             : MotionTrack.identity
-        self.alignmentDegrees = alignment.angle * 180 / .pi
+        // How far the clip's average attitude was from level. Absorbing this
+        // into the frame is the mistake the snap above avoids.
+        self.alignmentDegrees = simd_length(gravity) > 0.05
+            ? MotionTrack.angleFromNearestAxis(simd_normalize(gravity))
+            : 0
 
         // Zero-phase gravity reference. Handheld linear acceleration swamps the
         // raw accelerometer, and correcting towards it directly is what makes
@@ -190,6 +194,43 @@ final class MotionTrack {
     /// Everything except the heading.
     static func tilt(of orientation: simd_quatf) -> simd_quatf {
         (orientation * twist(of: orientation).inverse).normalized
+    }
+
+    /// Rotation from the IMU's frame to the camera's, snapped to whole right
+    /// angles.
+    ///
+    /// The sensor is soldered to a board inside the body, so the true rotation
+    /// maps axes onto axes. Averaged gravity says which IMU axis points down
+    /// and nothing more: the rest of it is how far the operator happened to
+    /// hold the camera off level during that clip. Taking the shortest arc
+    /// straight to the mean folds that into the frame, which tilts every
+    /// horizon the clip produces — 12.4 degrees on one sample capture and 3.3
+    /// on another from the same camera, which is impossible for a fixed
+    /// mounting and is the tell.
+    static func axisAligned(to gravity: SIMD3<Float>) -> simd_quatf {
+        var axis = 0
+        for candidate in 1..<3 where abs(gravity[candidate]) > abs(gravity[axis]) { axis = candidate }
+        var down = SIMD3<Float>(repeating: 0)
+        down[axis] = gravity[axis] > 0 ? 1 : -1
+        let up = -down
+        // Which of the remaining two axes points forward is a right angle that
+        // gravity cannot resolve; `IMUYaw` carries it.
+        var forward = SIMD3<Float>(repeating: 0)
+        forward[(axis + 1) % 3] = 1
+        let right = simd_cross(up, forward)
+        // Rows are the camera's axes written in the IMU's frame.
+        let matrix = simd_float3x3(columns: (SIMD3<Float>(right.x, up.x, forward.x),
+                                            SIMD3<Float>(right.y, up.y, forward.y),
+                                            SIMD3<Float>(right.z, up.z, forward.z)))
+        return simd_quatf(matrix).normalized
+    }
+
+    static func angleFromNearestAxis(_ direction: SIMD3<Float>) -> Float {
+        var axis = 0
+        for candidate in 1..<3 where abs(direction[candidate]) > abs(direction[axis]) { axis = candidate }
+        let along = abs(direction[axis])
+        let across = (simd_length_squared(direction) - along * along).squareRoot()
+        return atan2(across, along) * 180 / .pi
     }
 
     static func shortestArc(from source: SIMD3<Float>, to destination: SIMD3<Float>) -> simd_quatf {
