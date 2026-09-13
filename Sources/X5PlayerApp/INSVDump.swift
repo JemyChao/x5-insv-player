@@ -31,6 +31,20 @@ enum INSVDump {
         print("trailer length: \(trailer.trailerLength) bytes, version \(trailer.version), \(trailer.blocks.count) blocks")
         let identity = [trailer.cameraModel, trailer.firmware, trailer.serialNumber].compactMap { $0 }
         if !identity.isEmpty { print("camera: " + identity.joined(separator: "  ")) }
+        let config = trailer.config
+        print("capture settings from record 1:")
+        print("  ranges           +/-\(config.accelRangeG) g, +/-\(config.gyroRangeDegreesPerSecond) deg/s")
+        print("  raw gyro         \(config.isRawGyro)  (\(config.isRawGyro ? 20 : 56) byte records)")
+        print("  video time zero  \(config.firstFrameTimestamp) us")
+        print(String(format: "  gyro offset      %.3f ms (applied: %@)",
+                     config.gyroTimestampMilliseconds, config.hasGyroTimestamp ? "yes" : "no"))
+        print(String(format: "  rolling shutter  %.3f ms", config.rollingShutterMilliseconds))
+        print("  frames pre-stabilised: \(config.flowStateOnline)")
+        if !config.calibrationBias.isEmpty {
+            // Reported, not applied: which triple is the gyro is unsettled, and
+            // a constant gyro bias is what the filter absorbs anyway.
+            print("  calib bias       \(config.calibrationBias.map { String(format: "%.6f", $0) }.joined(separator: ", "))")
+        }
         for block in trailer.blocks {
             print(String(format: "  id 0x%04x  offset %9d  %9d bytes  %@",
                          block.id, block.offset, block.length, block.name))

@@ -129,10 +129,20 @@ mounting cannot move between clips, which is how the mistake shows itself.
 Orientation is integrated from the gyro with a complementary correction toward
 measured gravity, so it does not drift over a long clip.
 
-The sensor scales were measured rather than assumed: mean accelerometer
-magnitude came out at 0.993 g against the 1024 counts per g that a +/-32 g range
-implies, and fitting integrated gyro rotation against the accelerometer's tilt
-over two second windows landed on +/-1000 deg/s.
+The sensor scales and the clock origin are read from the capture, not assumed.
+Trailer record 1 is a protobuf carrying `gyro_cfg_info` (+/-32 g and +/-2000
+deg/s on an X5), `is_raw_gyro` (which of the two IMU encodings is in use), and
+`first_frame_timestamp`, which is where video time zero sits on the IMU's clock.
+
+Both were got wrong here by guessing first. The accelerometer range was measured
+correctly, but fitting the gyro range against the accelerometer's tilt landed
+near 1100 and was read as +/-1000: half the truth. Worse, video time zero was
+taken from the first exposure record, which on the sample capture is 0.767 s
+before `first_frame_timestamp` — the camera runs the IMU through a pre-roll. So
+every frame's correction was looked up three quarters of a second out of step,
+which at 16 deg/s of camera motion is a median 2.84 degrees of error per frame,
+6.4 at the 90th percentile and 12 at worst, changing frame to frame. That is a
+swimming horizon, and no amount of filter tuning fixes it.
 
 The gravity reference is averaged over a window centred on each sample, not a
 trailing one. Nothing here is real time, so there is no reason to accept the lag
@@ -220,3 +230,14 @@ licence for its explicit patent grant.
 Not affiliated with, endorsed by, or connected to the camera's manufacturer. No
 vendor SDK, library or source is used: the container layout was worked out by
 reading the bytes of ordinary, unencrypted capture files.
+
+## Acknowledgements
+
+The trailer layout here was reverse engineered from captures directly, then
+cross-checked against the `docs/research/insv-format.md` notes in
+[aeharding/kjerag](https://github.com/aeharding/kjerag), which is a far deeper
+treatment of the same format and is worth reading before repeating any of this
+work. That document is what identified `gyro_cfg_info`, `first_frame_timestamp`
+and the record id/format byte pair as fields rather than guesses. Kjerag is
+AGPL-3.0 and no code from it is used here; file format facts are not
+copyrightable, and the two implementations share nothing but the format.

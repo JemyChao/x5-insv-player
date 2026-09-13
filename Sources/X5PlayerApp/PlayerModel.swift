@@ -205,9 +205,12 @@ final class PlayerModel: ObservableObject {
             return
         }
 
-        cameraInfo = [parsed.cameraModel, parsed.firmware, parsed.serialNumber]
-            .compactMap { $0 }
-            .joined(separator: "  ")
+        cameraInfo = parsed.config.summary
+        if cameraInfo.isEmpty {
+            cameraInfo = [parsed.cameraModel, parsed.firmware, parsed.serialNumber]
+                .compactMap { $0 }
+                .joined(separator: "  ")
+        }
         if cameraInfo.isEmpty { cameraInfo = "-" }
 
         let names = parsed.blocks.map(\.name).joined(separator: ", ")

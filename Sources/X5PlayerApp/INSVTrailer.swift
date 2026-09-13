@@ -45,6 +45,7 @@ struct INSVTrailer {
     var gpsLayout: String?
     var frameTimestamps = 0
     var textBlobs: [String] = []
+    var config = CaptureConfig()
     var previewImage: Data?
     var calibration: LensProfile?
     var cameraModel: String?
@@ -112,17 +113,23 @@ enum INSVTrailerReader {
         }
 
         var notes = result.notes
-        // Exposure records carry one timestamp per video frame on the same
-        // clock as the IMU, so the first of them is where video time zero is.
-        var origin: UInt64?
-        if let exposure = result.blocks.first(where: { $0.id == 0x0400 }), exposure.data.count >= 16 {
-            origin = u64([UInt8](exposure.data), 0)
+        // Record 1 is a protobuf holding the capture settings: the IMU's
+        // full-scale ranges, the encoding, and where video time zero sits.
+        // Everything below reads them rather than assuming.
+        if let metadata = result.blocks.first(where: { $0.id == 0x0101 }) {
+            result.config = CaptureConfig.parse(metadata.data)
         }
+        if result.config.firstFrameTimestamp == 0,
+           let exposure = result.blocks.first(where: { $0.id == 0x0400 }), exposure.data.count >= 16 {
+            result.config.firstFrameTimestamp = u64([UInt8](exposure.data), 0)
+            notes.append("no first_frame_timestamp in the metadata; falling back to the first exposure record")
+        }
+        let origin = result.config.firstFrameTimestamp
 
         for block in result.blocks {
             switch block.id {
             case 0x0300:
-                result.motion = decodeMotion(block.data, origin: origin, notes: &notes)
+                result.motion = decodeMotion(block.data, config: result.config, notes: &notes)
             case 0x0400:
                 result.exposures = decodeExposures(block.data, origin: origin)
             case 0x0600:
@@ -153,7 +160,11 @@ enum INSVTrailerReader {
             result.serialNumber = identity.serial
             result.firmware = identity.firmware
         }
-        result.calibration = CalibrationScanner.profile(from: result.textBlobs, notes: &notes)
+        // The metadata names the calibration string outright, so scanning for
+        // it is only the fallback.
+        let named = [result.config.calibrationV2, result.config.calibrationV3].compactMap { $0 }
+        result.calibration = CalibrationScanner.profile(from: named, notes: &notes)
+            ?? CalibrationScanner.profile(from: result.textBlobs, notes: &notes)
         result.notes = notes
         if videoDuration > 0, let last = result.motion.last, last.time < videoDuration * 0.5 {
             result.notes.append("IMU track covers only \(String(format: "%.1f", last.time)) s of a \(String(format: "%.1f", videoDuration)) s capture")
@@ -201,6 +212,10 @@ enum INSVTrailerReader {
         var skipped = 0
         for slot in 0..<(index.count / slotLength) {
             let base = slot * slotLength
+            // id and format are separate bytes. Reading them as one 16-bit
+            // value is why published tables disagree: exiftool reads them
+            // little-endian and calls the gyro record 0x300, everything else
+            // calls it 3. Same bytes.
             let id = UInt16(index[base]) << 8 | UInt16(index[base + 1])
             let length = Int(u32(index, base + 2))
             let offset = Int(u32(index, base + 6))
@@ -223,37 +238,46 @@ enum INSVTrailerReader {
 
     // MARK: - Payload decoding
 
-    /// 20 byte records: a microsecond timestamp followed by six 16-bit channels
-    /// biased by 0x8000 — accelerometer XYZ then gyro XYZ.
+    /// IMU records, in whichever of the two encodings the capture declares.
     ///
-    /// The scale factors are the sensor's full-scale ranges, both confirmed
-    /// against a real capture: mean accelerometer magnitude came out at 1039
-    /// counts against the 1024 counts per g that +/-32 g implies, and fitting
-    /// integrated gyro rotation to the accelerometer's tilt landed on the
-    /// +/-1000 deg/s range.
-    static let accelCountsPerG = 1024.0
-    static let gyroRadiansPerCount = (1000.0 * Double.pi / 180.0) / 32768.0
-
-    static func decodeMotion(_ data: Data, origin: UInt64?, notes: inout [String]) -> [MotionSample] {
+    /// Raw: 20 bytes, a microsecond timestamp then six 16-bit channels biased
+    /// by 0x8000, accelerometer triple first. Otherwise: 56 bytes, the same
+    /// timestamp then six doubles already in g and rad/s.
+    ///
+    /// The scales come from `gyro_cfg_info` rather than from a constant. On an
+    /// X5 they are +/-32 g and +/-2000 deg/s; fitting the gyro range against
+    /// the accelerometer's tilt instead lands near 1100, which is how this was
+    /// wrong by a factor of two until the field was read.
+    static func decodeMotion(_ data: Data, config: CaptureConfig, notes: inout [String]) -> [MotionSample] {
         let bytes = [UInt8](data)
-        let recordSize = 20
+        let recordSize = config.isRawGyro ? 20 : 56
         guard bytes.count >= recordSize * 2 else { return [] }
         if bytes.count % recordSize != 0 {
-            notes.append("IMU block is \(bytes.count) bytes, not a whole number of 20 byte records")
+            notes.append("IMU block is \(bytes.count) bytes, not a whole number of \(recordSize) byte records")
         }
         let count = bytes.count / recordSize
-        let zero = origin ?? u64(bytes, 0)
+        let origin = Double(config.firstFrameTimestamp)
+        let offset = config.gyroOffsetSeconds
+        let accelCounts = config.accelCountsPerG
+        let gyroRadians = config.gyroRadiansPerCount
+
         var samples: [MotionSample] = []
         samples.reserveCapacity(count)
         for index in 0..<count {
             let base = index * recordSize
-            let raw = u64(bytes, base)
-            let time = (Double(raw) - Double(zero)) / 1_000_000
-            let channel = { (slot: Int) -> Double in
-                Double(Int(u16(bytes, base + 8 + slot * 2)) - 32768)
+            let time = (Double(u64(bytes, base)) - origin) / 1_000_000 - offset
+            let accel: SIMD3<Double>
+            let gyro: SIMD3<Double>
+            if config.isRawGyro {
+                let channel = { (slot: Int) -> Double in
+                    Double(Int(u16(bytes, base + 8 + slot * 2)) - 32768)
+                }
+                accel = SIMD3<Double>(channel(0), channel(1), channel(2)) / accelCounts
+                gyro = SIMD3<Double>(channel(3), channel(4), channel(5)) * gyroRadians
+            } else {
+                accel = SIMD3<Double>(f64(bytes, base + 8), f64(bytes, base + 16), f64(bytes, base + 24))
+                gyro = SIMD3<Double>(f64(bytes, base + 32), f64(bytes, base + 40), f64(bytes, base + 48))
             }
-            let accel = SIMD3<Double>(channel(0), channel(1), channel(2)) / accelCountsPerG
-            let gyro = SIMD3<Double>(channel(3), channel(4), channel(5)) * gyroRadiansPerCount
             samples.append(MotionSample(time: time, gyro: gyro, accel: accel))
         }
         return samples
