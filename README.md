@@ -185,12 +185,16 @@ one, so it mixes roll into pitch the moment the camera pans.
 
 Because the horizon correction is a rotation about a horizontal axis, it has to
 be expressed in the camera's heading frame, and the constant offset between the
-IMU and the camera cannot be recovered from the IMU alone. The sensor is
-board-mounted so the real value is a right angle, and the **IMU heading** control
-offers the four. It matters: on the sample capture, measured against the
-capture's own IMU track, per-frame horizon jitter is 4.28 degrees unstabilised,
-0.00 with the correct heading, and 6.01 with one that is 90 degrees out. If the
-horizon tips the wrong way, that control is the reason.
+IMU and the camera cannot be recovered from the IMU alone: gravity says nothing
+about heading. The sensor is board-mounted so the real value is a right angle,
+and the **IMU heading** control offers the four.
+
+It was settled the only way it can be, against footage. With stabilisation off
+and the horizon overlay on, one of the four puts the drawn line on the horizon
+visible in the image and the others do not. On an X5 running v1.11.6 that is
+**180 degrees**, which is now the default. The control stays because nothing
+here proves it holds for another model or firmware, and getting it wrong is
+worse than no stabilisation at all.
 
 One more thing worth recording, because it made stabilisation look broken: the
 correction is sampled at the timestamp of the frame on screen, never at the

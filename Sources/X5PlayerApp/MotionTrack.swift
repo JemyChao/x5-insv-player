@@ -250,7 +250,13 @@ final class MotionTrack {
 
 /// Heading offset between the IMU and the camera's optical frame. The sensor is
 /// board-mounted, so the real value is a right angle; which one cannot be told
-/// from the IMU alone.
+/// from the IMU alone, because gravity says nothing about heading.
+///
+/// It was settled the only way it can be, against footage: with stabilisation
+/// off and the horizon overlay on, only one of the four puts the drawn line on
+/// the horizon visible in the image. On an X5 running v1.11.6 that is 180
+/// degrees, which is `measured` below and the default. The control stays
+/// because nothing here proves it holds for another model or firmware.
 enum IMUYaw: Int, CaseIterable, Identifiable, Codable {
     case zero = 0
     case ninety = 90
@@ -260,6 +266,9 @@ enum IMUYaw: Int, CaseIterable, Identifiable, Codable {
     var id: Int { rawValue }
     var label: String { "\(rawValue)°" }
     var radians: Float { Float(rawValue) * .pi / 180 }
+
+    /// Measured on an X5, firmware v1.11.6.
+    static let measured = IMUYaw.oneEighty
 }
 
 enum Stabilization: String, CaseIterable, Identifiable, Codable {

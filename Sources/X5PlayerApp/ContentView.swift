@@ -153,7 +153,7 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    Text("If the horizon tips the wrong way, try the other three")
+                    Text("180° is measured on an X5. If the horizon tips the wrong way, try the other three.")
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

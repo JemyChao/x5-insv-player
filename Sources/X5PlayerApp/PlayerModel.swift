@@ -56,7 +56,7 @@ final class PlayerModel: ObservableObject {
     @Published var stabilization: Stabilization = .off {
         didSet { renderer.stabilization = stabilization }
     }
-    @Published var imuYaw: IMUYaw = .zero {
+    @Published var imuYaw: IMUYaw = .measured {
         didSet { renderer.imuYaw = imuYaw }
     }
     /// Seconds the gravity reference is averaged over. Short is twitchy, long

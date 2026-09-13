@@ -60,7 +60,7 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
     var showHorizon = false
     var exposure: Float = 1
     var stabilization: Stabilization = .off
-    var imuYaw: IMUYaw = .zero
+    var imuYaw: IMUYaw = .measured
     var motion: MotionTrack?
     var useBT2020 = false
     var tonemapHLG = false
