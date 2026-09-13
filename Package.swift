@@ -8,7 +8,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "X5PlayerApp",
-            resources: [.process("Shaders")]
+            // Copied rather than processed: the renderer builds the shader at
+            // launch when the toolchain has not produced a default.metallib.
+            resources: [.copy("Shaders")]
         )
     ]
 )

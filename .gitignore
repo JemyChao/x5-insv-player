@@ -1,0 +1,6 @@
+.build/
+.swiftpm/
+*.insv
+*.insp
+*.mp4
+.DS_Store
