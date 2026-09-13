@@ -37,7 +37,7 @@ final class CaptureReader {
     private let videoTracks: [AVAssetTrack]
     private let audioTrack: AVAssetTrack?
 
-    private let queue = DispatchQueue(label: "tv.titanos.x5.decode", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "x5insv.decode", qos: .userInitiated)
     private let lock = NSLock()
     private var pending: [FramePair] = []
     private var reader: AVAssetReader?

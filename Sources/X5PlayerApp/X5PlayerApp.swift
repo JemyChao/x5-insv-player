@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 extension Notification.Name {
-    static let x5OpenFile = Notification.Name("tv.titanos.x5.openFile")
+    static let x5OpenFile = Notification.Name("x5insv.openFile")
 }
 
 /// Entry point. `--dump` runs the trailer inspector instead of the window, so a
