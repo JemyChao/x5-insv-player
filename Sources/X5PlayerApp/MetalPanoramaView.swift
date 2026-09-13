@@ -57,6 +57,7 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
     var projection: ProjectionMode = .rectilinear
     var showGuides = false
     var seamDebug = false
+    var showHorizon = false
     var exposure: Float = 1
     var stabilization: Stabilization = .off
     var imuYaw: IMUYaw = .zero
@@ -236,7 +237,8 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
         for index in 0..<4 {
             encoder.setFragmentTexture(textures[index], index: index)
         }
-        var uniforms = makeUniforms(aspect: Float(view.drawableSize.width / max(view.drawableSize.height, 1)))
+        var uniforms = makeUniforms(aspect: Float(view.drawableSize.width / max(view.drawableSize.height, 1)),
+                                    height: Float(max(view.drawableSize.height, 1)))
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<PanoramaUniforms>.stride, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
         encoder.endEncoding()
@@ -244,7 +246,7 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
         buffer.commit()
     }
 
-    private func makeUniforms(aspect: Float) -> PanoramaUniforms {
+    private func makeUniforms(aspect: Float, height: Float) -> PanoramaUniforms {
         let userRotation = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
             * simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
         // Sampled at the timestamp of the frame actually on screen, not at the
@@ -275,8 +277,29 @@ final class PanoramaRenderer: NSObject, MTKViewDelegate {
                                 ready ? 1 : 0,
                                 showGuides ? 1 : 0,
                                 seamDebug ? 1 : 0),
-            color: SIMD4<Float>(useBT2020 ? 1 : 0, tonemapHLG ? 1 : 0, 0, 0)
+            color: SIMD4<Float>(useBT2020 ? 1 : 0, tonemapHLG ? 1 : 0, 0, 0),
+            horizonUp: horizonUniform(combined, height: height),
+            overlay: SIMD4<Float>(showHorizon && motion != nil ? 1 : 0,
+                                  showHorizon ? 1 : 0,
+                                  2.0 / height * 1.5,
+                                  0)
         )
+    }
+
+    /// The measured up direction carried into view space, plus a line width
+    /// that stays about three pixels however far the view is zoomed in.
+    ///
+    /// Carried through the same heading frame the correction uses, so the line
+    /// and the correction agree. What settles it is the footage: the real
+    /// horizon is visible in the image, so a line that tracks it means the IMU
+    /// frame is right and any wobble is the stabilisation failing, while a line
+    /// that sits at an angle to it means the heading is wrong instead.
+    private func horizonUniform(_ combined: simd_quatf, height: Float) -> SIMD4<Float> {
+        let measured = motion?.measuredUp(at: presentedTime) ?? SIMD3<Float>(0, 1, 0)
+        let frame = simd_quatf(angle: imuYaw.radians, axis: SIMD3<Float>(0, 1, 0))
+        let inView = combined.inverse.act(frame.inverse.act(measured))
+        let radiansPerPixel = fieldOfView / max(height, 1)
+        return SIMD4<Float>(inView.x, inView.y, inView.z, max(radiansPerPixel * 1.5, 1e-5))
     }
 
     private func upload(_ frame: CaptureReader.FramePair) {
@@ -333,4 +356,6 @@ struct PanoramaUniforms {
     var render: SIMD4<Float>
     var flags: SIMD4<Float>
     var color: SIMD4<Float>
+    var horizonUp: SIMD4<Float>
+    var overlay: SIMD4<Float>
 }

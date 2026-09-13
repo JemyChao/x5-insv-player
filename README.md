@@ -143,6 +143,19 @@ lands 1.3 degrees off and judder falls 14 per cent below unstabilised. The
 **Smoothing** control is that window: short is twitchy, long is steady but slow
 to re-level after a real tilt.
 
+**Horizon overlay** draws where gravity says level is, in red, against the
+window's own centre lines in green. It is drawn from the accelerometer rather
+than from the filter's orientation estimate, because an overlay taken from the
+estimate looks perfect exactly when the estimate is wrong in a self-consistent
+way. What settles the reading is the footage itself, since the real horizon is
+usually visible in it:
+
+- Red line tracks the real horizon and both hold still: working.
+- Red line tracks the real horizon and both wobble: the correction is not
+  holding, so try a longer **Smoothing** window.
+- Red line sits at an angle to the real horizon: the **IMU heading** is wrong,
+  and the correction is tilting about the wrong axis. Try the other three.
+
 **Full** cancels the orientation outright. **Horizon** removes only the tilt and
 lets the heading stay with the camera, which is `q⁻¹ · twist(q)`: cancel the
 orientation, then put the heading back. Inverting the tilt on its own is not the

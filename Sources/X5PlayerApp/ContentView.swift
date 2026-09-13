@@ -149,6 +149,15 @@ struct ContentView: View {
                           range: 0.3...4.0, format: "%.2f")
                         .padding(.top, 6)
                 }
+                Toggle("Horizon overlay", isOn: $player.showHorizon)
+                    .font(.system(size: 10, design: .monospaced))
+                    .padding(.top, 6)
+                if player.showHorizon {
+                    Text("Red: where gravity says level is. Green: the window's own centre lines.")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text("Needs the gyro track from the trailer")
                     .font(.system(size: 9, design: .monospaced))

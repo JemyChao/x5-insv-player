@@ -14,6 +14,8 @@ struct Uniforms {
     float4 render;      // fov (rad), aspect, blend (rad), exposure
     float4 flags;       // mode, hasFrame, guides, seam debug
     float4 color;       // matrix (0 = 709, 1 = 2020), hlg, reserved, reserved
+    float4 horizonUp;   // measured world up in VIEW space (xyz), line half width in dot units (w)
+    float4 overlay;     // draw horizon, draw screen level, screen line half width in ndc, unused
 };
 
 struct Varying {
@@ -144,6 +146,7 @@ fragment float4 panoramaFragment(Varying in [[stage_in]],
 
     float2 ndc = float2(in.uv.x * 2.0 - 1.0, 1.0 - in.uv.y * 2.0);
     float3 ray;
+    float3 viewRay;
 
     if (mode == 1) {
         // Equirectangular, letterboxed to 2:1 inside whatever the window is.
@@ -167,6 +170,7 @@ fragment float4 panoramaFragment(Varying in [[stage_in]],
         ray = normalize(float3(ndc.x * aspect * halfPlane, ndc.y * halfPlane, 1.0));
     }
 
+    viewRay = normalize(ray);
     ray = normalize(quatRotate(u.view, ray));
 
     float3 directionA = quatRotate(quatConjugate(u.lensARot), ray);
@@ -199,6 +203,21 @@ fragment float4 panoramaFragment(Varying in [[stage_in]],
         rgb += sampled * weightB;
     }
     rgb /= max(weightA + weightB, 1e-4);
+
+    // Where gravity says the horizon is, drawn in the view's own space so it
+    // moves exactly as much as the stabilisation fails to hold it still.
+    if (u.overlay.x > 0.5) {
+        float height = dot(viewRay, u.horizonUp.xyz);
+        float line = 1.0 - smoothstep(0.0, max(u.horizonUp.w, 1e-5), abs(height));
+        rgb = mix(rgb, float3(1.0, 0.28, 0.28), line * 0.85);
+    }
+    // A fixed line through the middle of the window to judge it against.
+    if (u.overlay.y > 0.5) {
+        float half = max(u.overlay.z, 1e-5);
+        float level = 1.0 - smoothstep(0.0, half, abs(ndc.y));
+        float centre = 1.0 - smoothstep(0.0, half, abs(ndc.x));
+        rgb = mix(rgb, float3(0.82, 1.0, 0.30), max(level, centre * 0.55) * 0.7);
+    }
 
     return float4(clamp(rgb, 0.0, 1.0), 1.0);
 }

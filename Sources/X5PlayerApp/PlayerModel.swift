@@ -67,6 +67,9 @@ final class PlayerModel: ObservableObject {
     @Published var seamDebug = false {
         didSet { renderer.seamDebug = seamDebug }
     }
+    @Published var showHorizon = false {
+        didSet { renderer.showHorizon = showHorizon }
+    }
     @Published var exposure: Double = 1 {
         didSet { renderer.exposure = Float(exposure) }
     }

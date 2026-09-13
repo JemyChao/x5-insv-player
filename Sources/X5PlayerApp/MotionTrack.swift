@@ -20,6 +20,11 @@ final class MotionTrack {
 
     private var times: [Double] = []
     private var orientations: [simd_quatf] = []
+    /// Measured world up, lightly smoothed. Deliberately independent of the
+    /// filter's own reference: an overlay drawn from the filter's estimate
+    /// would look perfect whenever the filter is wrong in a self-consistent
+    /// way, which is exactly the case worth seeing.
+    private var measuredUps: [SIMD3<Float>] = []
 
     static let identity = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
 
@@ -57,6 +62,8 @@ final class MotionTrack {
         }
         let reference = MotionTrack.centredAverage(levelled,
                                                    window: max(3, Int(smoothingSeconds * sampleRate)))
+        measuredUps = MotionTrack.centredAverage(levelled, window: max(3, Int(0.15 * sampleRate)))
+            .map { -$0 }
 
         times.reserveCapacity(samples.count)
         orientations.reserveCapacity(samples.count)
@@ -121,9 +128,23 @@ final class MotionTrack {
     /// Camera orientation at `time`, as a rotation from camera space to world space.
     func orientation(at time: Double) -> simd_quatf {
         guard !orientations.isEmpty else { return MotionTrack.identity }
-        if time <= times[0] { return orientations[0] }
+        let (low, high, fraction) = bracket(time)
+        return simd_slerp(orientations[low], orientations[high], fraction)
+    }
+
+    /// Where gravity says up is, in the capture's frame, for drawing the
+    /// horizon overlay.
+    func measuredUp(at time: Double) -> SIMD3<Float> {
+        guard !measuredUps.isEmpty else { return SIMD3<Float>(0, 1, 0) }
+        let (low, high, fraction) = bracket(time)
+        let blended = measuredUps[low] * (1 - fraction) + measuredUps[high] * fraction
+        return simd_length(blended) > 1e-5 ? simd_normalize(blended) : SIMD3<Float>(0, 1, 0)
+    }
+
+    private func bracket(_ time: Double) -> (low: Int, high: Int, fraction: Float) {
         let last = times.count - 1
-        if time >= times[last] { return orientations[last] }
+        if time <= times[0] { return (0, 0, 0) }
+        if time >= times[last] { return (last, last, 0) }
         var low = 0
         var high = last
         while high - low > 1 {
@@ -131,8 +152,7 @@ final class MotionTrack {
             if times[middle] <= time { low = middle } else { high = middle }
         }
         let span = times[high] - times[low]
-        let fraction = span > 0 ? Float((time - times[low]) / span) : 0
-        return simd_slerp(orientations[low], orientations[high], fraction)
+        return (low, high, span > 0 ? Float((time - times[low]) / span) : 0)
     }
 
     /// The rotation the renderer should apply for the requested lock.
