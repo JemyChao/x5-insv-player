@@ -66,7 +66,7 @@ final class PlayerModel: ObservableObject {
     }
     /// Seconds the heading is averaged over. Short leaves left-right shake in,
     /// long rounds off a deliberate pan.
-    @Published var panSmoothing: Double = 0.4 {
+    @Published var panSmoothing: Double = 1.2 {
         didSet { rebuildMotion() }
     }
     @Published var showGuides = false {

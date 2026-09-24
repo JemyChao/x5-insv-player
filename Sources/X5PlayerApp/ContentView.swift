@@ -161,8 +161,8 @@ struct ContentView: View {
                           range: 0.3...4.0, format: "%.2f")
                         .padding(.top, 6)
                     Tweak(label: "PAN SMOOTHING s", value: $player.panSmoothing,
-                          range: 0.1...3.0, format: "%.2f")
-                    Text("Horizon removes up-down shake; pan removes left-right. Raise pan until the swing stops, lower it if deliberate pans feel rounded off.")
+                          range: 0.1...6.0, format: "%.2f")
+                    Text("Horizon removes up-down shake; pan removes left-right. Handheld yaw shake overlaps panning in frequency, so pan is a trade: raise it until the swing stops, lower it if deliberate pans feel rounded off. At the top of the range the heading barely follows the camera at all.")
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

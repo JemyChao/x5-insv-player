@@ -187,10 +187,23 @@ by the formula and wrong to look at: it takes every bit of left-right shake out
 of the maths and puts it straight back into the picture, so the horizon stops
 tipping while the view still swings. The heading is unwrapped, averaged about
 each sample, and rebuilt, which leaves a deliberate pan intact and drops the
-shake around it. On a synthetic capture panning at 20 deg/s with 2 degrees of
-yaw shake at 3 Hz, per-frame heading movement falls from 1.09 to 0.66 degrees —
-and 0.67 is what the pan alone contributes, so what is left is the pan. The
-**Pan smoothing** control is that window. Inverting the tilt on its own is not the
+shake around it. The **Pan smoothing** control is that window.
+
+Unlike the horizon, this one is a genuine trade and not a setting with a right
+answer. Handheld yaw shake is low frequency and overlaps the spectrum of the
+panning it has to be told apart from, so no linear filter separates them
+cleanly. Measured on a 320 s handheld capture, per-frame heading movement is
+0.91 degrees unsmoothed against a 0.35 floor that is the panning itself:
+
+| window | per-frame | shake left | pan distorted by |
+| --- | --- | --- | --- |
+| 0.4 s | 0.79° | 0.70° | 0.8° |
+| 1.2 s | 0.59° | 0.48° | 3.5° |
+| 2.0 s | 0.49° | 0.34° | 5.6° |
+
+1.2 s is the default. Cascading three box averages to approximate a Gaussian
+was tried and is worth almost nothing at equal pan distortion, so the filter
+stays a single box. Inverting the tilt on its own is not the
 same thing — that rotates about a world-fixed axis rather than a camera-relative
 one, so it mixes roll into pitch the moment the camera pans.
 

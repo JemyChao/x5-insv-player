@@ -35,7 +35,7 @@ final class MotionTrack {
     ///     still gets through.
     init?(samples: [MotionSample],
           smoothingSeconds: Double = 1.5,
-          panSmoothingSeconds: Double = 0.4,
+          panSmoothingSeconds: Double = 1.2,
           invertGyro: Bool = false) {
         guard samples.count > 8 else { return nil }
         let span = samples[samples.count - 1].time - samples[0].time
@@ -121,6 +121,13 @@ final class MotionTrack {
     /// Unwraps the heading so averaging cannot be thrown by the wrap at +/-pi,
     /// then averages it about each sample. Centred, not trailing: this is a
     /// file, so a deliberate pan need not arrive late to have its shake removed.
+    ///
+    /// A plain box average, and deliberately. Cascading three of them to
+    /// approximate a Gaussian was measured on a real capture and is worth
+    /// almost nothing here, because handheld yaw shake is low frequency and
+    /// overlaps the spectrum of the panning it has to be told apart from. No
+    /// linear filter separates those cleanly, so the window is a trade rather
+    /// than a setting with a right answer, and it is exposed as one.
     private static func smoothedHeadings(of orientations: [simd_quatf], window: Int) -> [Float] {
         guard !orientations.isEmpty else { return [] }
         var unwrapped = [Float]()
