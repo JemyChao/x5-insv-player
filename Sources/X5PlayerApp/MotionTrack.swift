@@ -142,13 +142,17 @@ final class MotionTrack {
             unwrapped.append(angle)
             previous = angle
         }
-        var sums = [Float](repeating: 0, count: unwrapped.count + 1)
-        for index in unwrapped.indices { sums[index + 1] = sums[index] + unwrapped[index] }
+        // Accumulated in Double. Measured on a 320 s capture the Float version
+        // is off by 0.05 degrees at worst, which is nothing next to half a
+        // degree of real motion, but the sum grows with both length and net
+        // panning and the wider type costs nothing here.
+        var sums = [Double](repeating: 0, count: unwrapped.count + 1)
+        for index in unwrapped.indices { sums[index + 1] = sums[index] + Double(unwrapped[index]) }
         let half = max(1, window / 2)
         return unwrapped.indices.map { index in
             let low = max(0, index - half)
             let high = min(unwrapped.count, index + half + 1)
-            return (sums[high] - sums[low]) / Float(high - low)
+            return Float((sums[high] - sums[low]) / Double(high - low))
         }
     }
 
@@ -160,18 +164,26 @@ final class MotionTrack {
         return simd_quatf(angle: angle, axis: SIMD3<Float>(0, 1, 0))
     }
 
-    /// Moving average centred on each sample, from prefix sums.
+    /// Moving average centred on each sample, from prefix sums accumulated in
+    /// Double. Same reasoning as the heading: not a visible error at the
+    /// lengths measured, but the sum grows with capture length and the wider
+    /// accumulator is free.
     private static func centredAverage(_ values: [SIMD3<Float>], window: Int) -> [SIMD3<Float>] {
         guard !values.isEmpty else { return [] }
-        var sums = [SIMD3<Float>](repeating: .zero, count: values.count + 1)
-        for index in values.indices { sums[index + 1] = sums[index] + values[index] }
+        var sums = [SIMD3<Double>](repeating: .zero, count: values.count + 1)
+        for index in values.indices {
+            sums[index + 1] = sums[index] + SIMD3<Double>(Double(values[index].x),
+                                                          Double(values[index].y),
+                                                          Double(values[index].z))
+        }
         let half = max(1, window / 2)
         var result = [SIMD3<Float>]()
         result.reserveCapacity(values.count)
         for index in values.indices {
             let low = max(0, index - half)
             let high = min(values.count, index + half + 1)
-            let mean = (sums[high] - sums[low]) / Float(high - low)
+            let total = (sums[high] - sums[low]) / Double(high - low)
+            let mean = SIMD3<Float>(Float(total.x), Float(total.y), Float(total.z))
             result.append(simd_length(mean) > 1e-6 ? simd_normalize(mean) : SIMD3<Float>(0, -1, 0))
         }
         return result
