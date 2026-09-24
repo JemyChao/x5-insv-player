@@ -64,6 +64,11 @@ final class PlayerModel: ObservableObject {
     @Published var horizonSmoothing: Double = 1.5 {
         didSet { rebuildMotion() }
     }
+    /// Seconds the heading is averaged over. Short leaves left-right shake in,
+    /// long rounds off a deliberate pan.
+    @Published var panSmoothing: Double = 0.4 {
+        didSet { rebuildMotion() }
+    }
     @Published var showGuides = false {
         didSet { renderer.showGuides = showGuides }
     }
@@ -242,7 +247,9 @@ final class PlayerModel: ObservableObject {
     }
 
     private func rebuildMotion() {
-        if let track = MotionTrack(samples: motionSamples, smoothingSeconds: horizonSmoothing) {
+        if let track = MotionTrack(samples: motionSamples,
+                                   smoothingSeconds: horizonSmoothing,
+                                   panSmoothingSeconds: panSmoothing) {
             renderer.motion = track
             hasMotion = true
             motionInfo = String(format: "%d samples / %.0f Hz / held %.1f° off level",

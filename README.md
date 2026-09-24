@@ -159,8 +159,9 @@ gain of 0.02 leaves it at 5.9 — no levelling at all — while raising
 high-frequency judder 27 per cent above unstabilised, which is exactly what
 "stabilisation makes it worse" looks like. With the window at 1.5 s the horizon
 lands 1.3 degrees off and judder falls 14 per cent below unstabilised. The
-**Smoothing** control is that window: short is twitchy, long is steady but slow
-to re-level after a real tilt.
+**Horizon smoothing** control is that window: short is twitchy, long is steady
+but slow to re-level after a real tilt. **Pan smoothing** is the same idea for
+left-right shake.
 
 **Horizon overlay** draws where the IMU says level is, in red, against the
 window's centre lines in green. Read it with **stabilisation off**: the line
@@ -177,9 +178,19 @@ trap: on a handheld capture the measured gravity direction sits a median 4.9
 degrees off the filtered reference and moves 3 degrees a frame, so the line
 shows linear acceleration and reads as though stabilisation had failed.
 
-**Full** cancels the orientation outright. **Horizon** removes only the tilt and
-lets the heading stay with the camera, which is `q⁻¹ · twist(q)`: cancel the
-orientation, then put the heading back. Inverting the tilt on its own is not the
+**Full** cancels the orientation outright. **Horizon** removes the tilt and lets
+the heading stay with the camera, which is `q⁻¹ · twist(q)`: cancel the
+orientation, then put the heading back.
+
+The heading put back is a smoothed one. Returning it instantaneously is correct
+by the formula and wrong to look at: it takes every bit of left-right shake out
+of the maths and puts it straight back into the picture, so the horizon stops
+tipping while the view still swings. The heading is unwrapped, averaged about
+each sample, and rebuilt, which leaves a deliberate pan intact and drops the
+shake around it. On a synthetic capture panning at 20 deg/s with 2 degrees of
+yaw shake at 3 Hz, per-frame heading movement falls from 1.09 to 0.66 degrees —
+and 0.67 is what the pan alone contributes, so what is left is the pan. The
+**Pan smoothing** control is that window. Inverting the tilt on its own is not the
 same thing — that rotates about a world-fixed axis rather than a camera-relative
 one, so it mixes roll into pitch the moment the camera pans.
 

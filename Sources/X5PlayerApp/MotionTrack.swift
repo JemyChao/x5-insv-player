@@ -20,13 +20,23 @@ final class MotionTrack {
 
     private var times: [Double] = []
     private var orientations: [simd_quatf] = []
+    /// Heading angle, unwrapped and then smoothed. Horizon lock keeps the
+    /// camera's heading rather than cancelling it, so taking it instantaneously
+    /// passes every bit of yaw shake straight through to the picture.
+    private var headings: [Float] = []
 
     static let identity = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
 
-    /// - Parameter smoothingSeconds: how long the gravity reference is averaged
-    ///   over. This is the control that decides whether the horizon is steady
-    ///   or shaky, so it is a parameter rather than a constant.
-    init?(samples: [MotionSample], smoothingSeconds: Double = 1.5, invertGyro: Bool = false) {
+    /// - Parameters:
+    ///   - smoothingSeconds: how long the gravity reference is averaged over.
+    ///     Decides whether the horizon is steady or shaky.
+    ///   - panSmoothingSeconds: how long the heading is averaged over. Decides
+    ///     how much left-right shake survives, and how much of a deliberate pan
+    ///     still gets through.
+    init?(samples: [MotionSample],
+          smoothingSeconds: Double = 1.5,
+          panSmoothingSeconds: Double = 0.4,
+          invertGyro: Bool = false) {
         guard samples.count > 8 else { return nil }
         let span = samples[samples.count - 1].time - samples[0].time
         guard span > 0 else { return nil }
@@ -103,6 +113,44 @@ final class MotionTrack {
             times.append(sample.time)
             orientations.append(orientation)
         }
+
+        headings = MotionTrack.smoothedHeadings(of: orientations,
+                                                window: max(3, Int(panSmoothingSeconds * sampleRate)))
+    }
+
+    /// Unwraps the heading so averaging cannot be thrown by the wrap at +/-pi,
+    /// then averages it about each sample. Centred, not trailing: this is a
+    /// file, so a deliberate pan need not arrive late to have its shake removed.
+    private static func smoothedHeadings(of orientations: [simd_quatf], window: Int) -> [Float] {
+        guard !orientations.isEmpty else { return [] }
+        var unwrapped = [Float]()
+        unwrapped.reserveCapacity(orientations.count)
+        var previous: Float = 0
+        for (index, orientation) in orientations.enumerated() {
+            var angle = 2 * atan2(orientation.imag.y, orientation.real)
+            if index > 0 {
+                while angle - previous > .pi { angle -= 2 * .pi }
+                while angle - previous < -.pi { angle += 2 * .pi }
+            }
+            unwrapped.append(angle)
+            previous = angle
+        }
+        var sums = [Float](repeating: 0, count: unwrapped.count + 1)
+        for index in unwrapped.indices { sums[index + 1] = sums[index] + unwrapped[index] }
+        let half = max(1, window / 2)
+        return unwrapped.indices.map { index in
+            let low = max(0, index - half)
+            let high = min(unwrapped.count, index + half + 1)
+            return (sums[high] - sums[low]) / Float(high - low)
+        }
+    }
+
+    /// The heading to render at: the camera's, with the shake taken out.
+    func smoothedTwist(at time: Double) -> simd_quatf {
+        guard !headings.isEmpty else { return MotionTrack.identity }
+        let (low, high, fraction) = bracket(time)
+        let angle = headings[low] * (1 - fraction) + headings[high] * fraction
+        return simd_quatf(angle: angle, axis: SIMD3<Float>(0, 1, 0))
     }
 
     /// Moving average centred on each sample, from prefix sums.
@@ -161,9 +209,11 @@ final class MotionTrack {
     /// Full lock is the inverse orientation, and the constant rotation between
     /// the IMU and the camera only reframes it, so it needs no extra input.
     ///
-    /// Horizon lock keeps the heading with the camera and removes only the
-    /// tilt, which is `q⁻¹ · twist(q)` — cancel the orientation, then put the
-    /// heading back. Inverting the tilt on its own is not the same thing: that
+    /// Horizon lock removes the tilt and keeps the heading, which is
+    /// `q⁻¹ · twist(q)` — cancel the orientation, then put the heading back.
+    /// The heading put back is a smoothed one: returning it instantaneously
+    /// leaves every bit of yaw shake in the picture, which is correct by the
+    /// formula and wrong to look at. Inverting the tilt on its own is not the same thing: that
     /// rotates about a world-fixed axis instead of a camera-relative one, so it
     /// mixes roll into pitch as soon as the camera pans. Because the result is
     /// a rotation about a horizontal axis, the unknown heading offset between
@@ -178,7 +228,7 @@ final class MotionTrack {
             return orientation(at: time).inverse.normalized
         case .horizon:
             let current = orientation(at: time)
-            let levelled = (current.inverse * MotionTrack.twist(of: current)).normalized
+            let levelled = (current.inverse * smoothedTwist(at: time)).normalized
             guard abs(imuYaw) > 1e-6 else { return levelled }
             let frame = simd_quatf(angle: imuYaw, axis: SIMD3<Float>(0, 1, 0))
             return (frame.inverse * levelled * frame).normalized

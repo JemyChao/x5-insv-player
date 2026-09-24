@@ -157,9 +157,15 @@ struct ContentView: View {
                         .font(.system(size: 9, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Tweak(label: "SMOOTHING s", value: $player.horizonSmoothing,
+                    Tweak(label: "HORIZON SMOOTHING s", value: $player.horizonSmoothing,
                           range: 0.3...4.0, format: "%.2f")
                         .padding(.top, 6)
+                    Tweak(label: "PAN SMOOTHING s", value: $player.panSmoothing,
+                          range: 0.1...3.0, format: "%.2f")
+                    Text("Horizon removes up-down shake; pan removes left-right. Raise pan until the swing stops, lower it if deliberate pans feel rounded off.")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Toggle("Horizon overlay", isOn: $player.showHorizon)
                     .font(.system(size: 10, design: .monospaced))
